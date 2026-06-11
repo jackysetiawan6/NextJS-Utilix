@@ -1,0 +1,83 @@
+@keyframes dashdraw {
+  from {
+    stroke-dashoffset: 24;
+  }
+}
+
+.react-flow__edge.animated .react-flow__edge-path {
+  stroke-dasharray: 8;
+  stroke-width: 3px;
+  animation: dashdraw 1.5s linear infinite;
+  filter: drop-shadow(0 0 3px currentColor);
+}
+
+.react-flow__node {
+  border-radius: var(--radius);
+  font-family: inherit;
+  border-width: 2px;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.react-flow__node:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.react-flow__node.react-flow__node-sourcePanel,
+.react-flow__node.react-flow__node-distributionPanel {
+  background: hsl(var(--card));
+  border-color: hsl(var(--border));
+  padding: 0;
+  width: auto;
+  height: auto;
+}
+
+.react-flow__node.selected {
+  box-shadow: 0 0 0 2px hsl(var(--ring));
+}
+
+.react-flow__node-distributionPanel.status-Online {
+  border-color: hsl(var(--status-online) / 0.8);
+}
+.react-flow__node-distributionPanel.status-Maintenance {
+  border-color: hsl(var(--status-maintenance) / 0.8);
+}
+.react-flow__node-distributionPanel.status-Offline {
+  border-color: hsl(var(--status-offline) / 0.5);
+  border-style: dashed;
+  opacity: 0.7;
+}
+
+
+.react-flow__handle {
+  border: 2px solid hsl(var(--card));
+  background: hsl(var(--primary));
+}
+
+.react-flow__handle-connecting {
+  background: hsl(var(--accent));
+}
+
+.react-flow .react-flow__controls {
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+.react-flow .react-flow__controls button {
+  background-color: hsl(var(--card));
+  border-bottom: 1px solid hsl(var(--border));
+  color: hsl(var(--foreground));
+}
+
+.react-flow .react-flow__controls button:hover {
+  background-color: hsl(var(--muted));
+}
+
+.react-flow .react-flow__minimap {
+  background-color: hsl(var(--card));
+  border-radius: var(--radius);
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+.react-flow__edge-path {
+  stroke-width: 2;
+}
