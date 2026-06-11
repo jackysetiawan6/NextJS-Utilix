@@ -15,12 +15,12 @@ CREATE TABLE IF NOT EXISTS diagrams (
 );
 
 -- 2. Panels Table
--- Represents individual electrical nodes (LV Panels, UPS, Sources).
+-- Represents individual electrical nodes / equipment (LV Panels, UPS, Server Racks, Chillers, etc.).
 CREATE TABLE IF NOT EXISTS panels (
   id TEXT PRIMARY KEY,
   diagram_id TEXT NOT NULL REFERENCES diagrams(id) ON DELETE CASCADE,
   label TEXT NOT NULL,
-  panel_type TEXT NOT NULL, -- e.g., 'LV Panel' or 'UPS'
+  unit_type TEXT NOT NULL, -- e.g., 'LV Panel', 'UPS', 'Server Rack', etc.
   is_source BOOLEAN DEFAULT FALSE,
   source_group TEXT, -- 'A', 'B', or NULL
   status TEXT NOT NULL CHECK (status IN ('Online', 'Offline', 'Maintenance')),
@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS connections (
   selector_status TEXT NOT NULL DEFAULT 'Auto' CHECK (selector_status IN ('Auto', 'Manual', 'Off')),
   is_priority BOOLEAN DEFAULT FALSE,
   tag TEXT,
+  settings JSONB NOT NULL DEFAULT '{"hasSelector": true, "hasBreaker": true}'::jsonb,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   
   -- Ensures we don't have duplicate links between the same panels
@@ -147,6 +148,39 @@ CREATE POLICY logs_owner_policy ON logs
     )
   );
 
+-- 5. Simulation Cases Table
+-- Stores saved simulation scenarios/cases of nodes and edges state.
+CREATE TABLE IF NOT EXISTS simulation_cases (
+  id TEXT PRIMARY KEY,
+  diagram_id TEXT NOT NULL REFERENCES diagrams(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  description TEXT,
+  state JSONB NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_simulation_cases_diagram_id ON simulation_cases(diagram_id);
+
+ALTER TABLE simulation_cases ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY cases_owner_policy ON simulation_cases
+  FOR ALL
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM diagrams
+      WHERE diagrams.id = simulation_cases.diagram_id
+      AND diagrams.owner_id = auth.uid()
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM diagrams
+      WHERE diagrams.id = simulation_cases.diagram_id
+      AND diagrams.owner_id = auth.uid()
+    )
+  );
+
 -- ==========================================
 -- Enable Supabase Realtime Replication
 -- ==========================================
@@ -155,3 +189,4 @@ CREATE POLICY logs_owner_policy ON logs
 ALTER PUBLICATION supabase_realtime ADD TABLE panels;
 ALTER PUBLICATION supabase_realtime ADD TABLE connections;
 ALTER PUBLICATION supabase_realtime ADD TABLE logs;
+ALTER PUBLICATION supabase_realtime ADD TABLE simulation_cases;

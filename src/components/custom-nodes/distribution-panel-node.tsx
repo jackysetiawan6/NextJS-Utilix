@@ -2,8 +2,22 @@
 
 import { memo, useMemo } from 'react';
 import { Handle, Position, type NodeProps } from 'reactflow';
-import { CircuitBoard, Wrench, ChevronDown, ChevronRight, Server } from 'lucide-react';
-import type { PanelData, PanelType } from '@/lib/types';
+import {
+  CircuitBoard,
+  Wrench,
+  ChevronDown,
+  ChevronRight,
+  Server,
+  Zap,
+  BatteryCharging,
+  Cpu,
+  ArrowRightLeft,
+  Snowflake,
+  Wind,
+  Fan,
+  Lightbulb,
+} from 'lucide-react';
+import type { PanelData, UnitType } from '@/lib/types';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { useDiagram } from '@/contexts/diagram-context';
 import { Button } from '../ui/button';
@@ -13,7 +27,7 @@ function DistributionPanelNode({ id, data }: NodeProps<PanelData>) {
   const isCollapsed = collapsedNodes[id];
   const hasOutgoing = data.outgoing && data.outgoing.length > 0;
 
-  const panelType: PanelType = data.panelType || 'LV Panel';
+  const unitType: UnitType = data.unitType || 'LV Panel';
   const isMaintenance = data.status === 'Maintenance';
   
   const statusColorMap = {
@@ -24,14 +38,32 @@ function DistributionPanelNode({ id, data }: NodeProps<PanelData>) {
 
   const PanelIcon = useMemo(() => {
     if (isMaintenance) return Wrench;
-    switch (panelType) {
-        case 'UPS':
-            return Server;
-        case 'LV Panel':
-        default:
-            return CircuitBoard;
+    switch (unitType) {
+      case 'Utility':
+        return Zap;
+      case 'Generator':
+        return BatteryCharging;
+      case 'UPS':
+        return Server;
+      case 'PDU':
+        return Cpu;
+      case 'STS':
+        return ArrowRightLeft;
+      case 'Server Rack':
+        return Server;
+      case 'Chiller':
+        return Snowflake;
+      case 'AHU':
+        return Wind;
+      case 'FCU':
+        return Fan;
+      case 'Lamp':
+        return Lightbulb;
+      case 'LV Panel':
+      default:
+        return CircuitBoard;
     }
-  }, [isMaintenance, panelType]);
+  }, [isMaintenance, unitType]);
 
 
   const handleToggleCollapse = (e: React.MouseEvent) => {

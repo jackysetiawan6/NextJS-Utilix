@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, Trash2 } from 'lucide-react';
 import type { LogEntry, Role } from '@/lib/types';
 import { useRole } from '@/contexts/role-context';
+import { useAuth } from '@/contexts/auth-context';
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -38,6 +39,7 @@ import { getActiveDiagramId } from '@/lib/log-service';
 
 function LogPageContent() {
   const { role, hasPermission } = useRole();
+  const { isMockSession } = useAuth();
   const { toast } = useToast();
 
   const [roleFilter, setRoleFilter] = useState<Role | 'All'>('All');
@@ -51,7 +53,7 @@ function LogPageContent() {
   const fetchLogs = useCallback(async () => {
     const diagramId = getActiveDiagramId();
     try {
-      if (isMockDatabase) {
+      if (isMockSession) {
         // Mock Mode: Fetch logs from localStorage
         const storedLogsRaw = localStorage.getItem(`utilix_mock_logs_${diagramId}`);
         const storedLogs = storedLogsRaw ? JSON.parse(storedLogsRaw) : [];
@@ -72,12 +74,12 @@ function LogPageContent() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [isMockSession]);
 
   useEffect(() => {
     fetchLogs();
 
-    if (isMockDatabase) {
+    if (isMockSession) {
       // Mock Mode: Listen to custom window event
       if (typeof window !== 'undefined') {
         window.addEventListener('mock_logs_changed', fetchLogs);
@@ -105,7 +107,7 @@ function LogPageContent() {
     return () => {
       supabase.removeChannel(logsChannel);
     };
-  }, [fetchLogs]);
+  }, [fetchLogs, isMockSession]);
 
   const filteredLogs = useMemo(() => {
     if (!logs) return [];
@@ -124,7 +126,7 @@ function LogPageContent() {
     }
     const diagramId = getActiveDiagramId();
     try {
-        if (isMockDatabase) {
+        if (isMockSession) {
           localStorage.removeItem(`utilix_mock_logs_${diagramId}`);
           if (typeof window !== 'undefined') {
             window.dispatchEvent(new Event('mock_logs_changed'));

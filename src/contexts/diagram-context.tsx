@@ -15,13 +15,13 @@ import {
   type EdgeRemoveChange,
 } from 'reactflow';
 import { produce } from 'immer';
-import type { AppNode, AppEdge, PanelData, Status, ConnectionInfo, PanelProperty } from '@/lib/types';
+import type { AppNode, AppEdge, PanelData, Status, ConnectionInfo, PanelProperty, UnitType, ConnectionSettings, BreakerStatus, SelectorStatus, SimulationCase } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { useRole } from './role-context';
 import { useAuth } from './auth-context';
 import { logEvent } from '@/lib/log-service';
-import { getInitialNodesForSeeding } from '@/lib/initial-data';
-import { supabase, isMockDatabase } from '@/lib/supabase';
+import { getInitialNodesForSeeding, getDefaultProperties } from '@/lib/initial-data';
+import { supabase } from '@/lib/supabase';
 
 interface DiagramState {
   nodes: AppNode[];
@@ -53,7 +53,7 @@ interface DiagramContextType {
     nodeId: string,
     direction: 'incoming' | 'outgoing',
     connectionId: string,
-    config: Partial<Pick<ConnectionInfo, 'breakerStatus' | 'selectorStatus' | 'tag'>>
+    config: Partial<ConnectionInfo>
   ) => void;
   setIncomingPriority: (nodeId: string, connectionId: string) => void;
   panToNode: (nodeId: string) => void;
@@ -81,6 +81,10 @@ interface DiagramContextType {
   clipboard: { nodes: AppNode[], edges: AppEdge[] } | null;
   onNodeDragStart: () => void;
   onNodeDragStop: () => void;
+  cases: SimulationCase[];
+  createCase: (name: string, description?: string) => Promise<void>;
+  deleteCase: (caseId: string) => Promise<void>;
+  loadCase: (caseId: string) => void;
 }
 
 const DiagramContext = createContext<DiagramContextType | null>(null);
@@ -188,6 +192,20 @@ const useUndoableState = (initialState: DiagramState) => {
   return { state, setUndoableState, undo, redo, save, resetToLastSave, resetHistory, isDirty, canUndo, canRedo, getChangesForSave, commitState, setState };
 };
 
+const getEffectiveBreakerStatus = (c: ConnectionInfo): BreakerStatus => {
+  if (c.settings && c.settings.hasBreaker === false) {
+    return 'Closed';
+  }
+  return c.breakerStatus;
+};
+
+const getEffectiveSelectorStatus = (c: ConnectionInfo): SelectorStatus => {
+  if (c.settings && c.settings.hasSelector === false) {
+    return 'Manual';
+  }
+  return c.selectorStatus;
+};
+
 const runElectricalSimulation = (nodes: AppNode[]): AppNode[] => {
   return produce(nodes, draftNodes => {
     let changed = true;
@@ -215,17 +233,22 @@ const runElectricalSimulation = (nodes: AppNode[]): AppNode[] => {
         if (panel.data.status === 'Maintenance') return false;
 
         for (const incoming of panel.data.incoming) {
-          if (incoming.selectorStatus !== 'Off' && incoming.breakerStatus === 'Closed') {
+          const effSelector = getEffectiveSelectorStatus(incoming);
+          const effBreaker = getEffectiveBreakerStatus(incoming);
+          if (effSelector !== 'Off' && effBreaker === 'Closed') {
             const sourcePanel = nodeMap.get(incoming.connectedPanelId);
             if (!sourcePanel) continue;
             
             const sourceOutgoing = sourcePanel.data.outgoing.find(c => c.id === incoming.id);
-            if (!sourceOutgoing || sourceOutgoing.breakerStatus === 'Open') continue;
+            if (!sourceOutgoing) continue;
+            const sourceEffBreaker = getEffectiveBreakerStatus(sourceOutgoing);
+            if (sourceEffBreaker === 'Open') continue;
 
             if (sourcePanel.data.isSource) {
                if (isPowerFlowing(sourcePanel.id, new Set(visited))) return true;
             } else {
-               if (sourceOutgoing.selectorStatus !== 'Off' && isPowerFlowing(sourcePanel.id, new Set(visited))) {
+               const sourceEffSelector = getEffectiveSelectorStatus(sourceOutgoing);
+               if (sourceEffSelector !== 'Off' && isPowerFlowing(sourcePanel.id, new Set(visited))) {
                  return true;
                }
             }
@@ -238,7 +261,7 @@ const runElectricalSimulation = (nodes: AppNode[]): AppNode[] => {
       draftNodes.forEach(node => {
         let newStatus: Status;
         if (node.data.isSource) {
-          newStatus = node.data.outgoing.some(o => o.breakerStatus === 'Closed') ? 'Online' : 'Offline';
+          newStatus = node.data.outgoing.some(o => getEffectiveBreakerStatus(o) === 'Closed') ? 'Online' : 'Offline';
         } else if (node.data.status === 'Maintenance') {
           newStatus = 'Maintenance';
         } else {
@@ -255,9 +278,13 @@ const runElectricalSimulation = (nodes: AppNode[]): AppNode[] => {
       draftNodes.forEach(node => {
         if (node.data.isSource || node.data.status === 'Maintenance') return;
 
-        const hasManualClosed = node.data.incoming.some(c => c.selectorStatus === 'Manual' && c.breakerStatus === 'Closed');
+        const hasManualClosed = node.data.incoming.some(c => {
+          const effSelector = getEffectiveSelectorStatus(c);
+          const effBreaker = getEffectiveBreakerStatus(c);
+          return effSelector === 'Manual' && effBreaker === 'Closed';
+        });
         
-        const autoIncomers = node.data.incoming.filter(c => c.selectorStatus === 'Auto');
+        const autoIncomers = node.data.incoming.filter(c => getEffectiveSelectorStatus(c) === 'Auto');
         if (autoIncomers.length === 0) return;
 
         if (hasManualClosed) {
@@ -274,13 +301,16 @@ const runElectricalSimulation = (nodes: AppNode[]): AppNode[] => {
           const sourcePanel = nodeMap.get(c.connectedPanelId);
           if(!sourcePanel) return false;
           const sourceOutgoing = sourcePanel.data.outgoing.find(og => og.id === c.id);
-          if (!sourceOutgoing || sourceOutgoing.breakerStatus === 'Open') {
+          if (!sourceOutgoing) return false;
+          const sourceEffBreaker = getEffectiveBreakerStatus(sourceOutgoing);
+          if (sourceEffBreaker === 'Open') {
             return false;
           }
           if (sourcePanel.data.isSource) {
               return isPowerFlowing(c.connectedPanelId);
           }
-          if (sourceOutgoing.selectorStatus === 'Off') {
+          const sourceEffSelector = getEffectiveSelectorStatus(sourceOutgoing);
+          if (sourceEffSelector === 'Off') {
               return false;
           }
           return isPowerFlowing(c.connectedPanelId);
@@ -318,7 +348,7 @@ const runElectricalSimulation = (nodes: AppNode[]): AppNode[] => {
       draftNodes.forEach(node => {
         const isOnline = node.data.isSource || node.data.status === 'Online';
         node.data.outgoing.forEach(c => {
-          if (c.selectorStatus === 'Auto') {
+          if (getEffectiveSelectorStatus(c) === 'Auto') {
             const targetStatus = isOnline ? 'Closed' : 'Open';
             if (c.breakerStatus !== targetStatus) {
               c.breakerStatus = targetStatus;
@@ -438,7 +468,7 @@ const autoLayoutNodes = (nodes: AppNode[], edges: AppEdge[]): AppNode[] => {
 };
 
 export function DiagramProvider({ children }: { children: ReactNode }) {
-  const { locationKeyword, user } = useAuth();
+  const { locationKeyword, user, isMockSession } = useAuth();
   const DIAGRAM_ID = locationKeyword || 'main-diagram';
 
   const { 
@@ -449,6 +479,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
 
   const { nodes, edges } = state;
   const [isLoading, setIsLoading] = useState(true);
+  const [cases, setCases] = useState<SimulationCase[]>([]);
   const { role, hasPermission } = useRole();
 
   const [lastClickPosition, setLastClickPosition] = useState<{ x: number; y: number } | null>(null);
@@ -465,7 +496,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
           breakerStatus: c.breaker_status,
           selectorStatus: c.selector_status,
           isPriority: c.is_priority,
-          tag: c.tag || ''
+          tag: c.tag || '',
+          settings: c.settings || { hasSelector: true, hasBreaker: true }
         }));
 
       const outgoing = connectionsData
@@ -476,7 +508,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
           breakerStatus: c.breaker_status,
           selectorStatus: c.selector_status,
           isPriority: c.is_priority,
-          tag: c.tag || ''
+          tag: c.tag || '',
+          settings: c.settings || { hasSelector: true, hasBreaker: true }
         }));
 
       return {
@@ -487,7 +520,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
           label: p.label,
           isSource: p.is_source,
           sourceGroup: p.source_group as 'A' | 'B' | undefined,
-          panelType: p.panel_type as any,
+          unitType: p.unit_type as any,
           status: p.status as any,
           properties: p.properties || [],
           incoming,
@@ -517,7 +550,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
 
     try {
-      if (isMockDatabase) {
+      if (isMockSession) {
         // Mock Mode: Load diagram nodes & edges from localStorage
         const stored = localStorage.getItem(`utilix_mock_diagram_${DIAGRAM_ID}`);
         if (stored) {
@@ -545,6 +578,10 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
           );
           resetHistory({ nodes: calculatedNodes, edges: mockEdges });
         }
+        
+        // Load mock cases
+        const storedCases = localStorage.getItem(`utilix_mock_cases_${DIAGRAM_ID}`);
+        setCases(storedCases ? JSON.parse(storedCases) : []);
         setIsLoading(false);
         return;
       }
@@ -570,14 +607,29 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
         diagram = newDiagram;
       }
 
-      // 2. Fetch panels and connections
-      const [panelsRes, connectionsRes] = await Promise.all([
+      // 2. Fetch panels, connections, and cases
+      const [panelsRes, connectionsRes, casesRes] = await Promise.all([
         supabase.from('panels').select('*').eq('diagram_id', DIAGRAM_ID),
-        supabase.from('connections').select('*').eq('diagram_id', DIAGRAM_ID)
+        supabase.from('connections').select('*').eq('diagram_id', DIAGRAM_ID),
+        supabase.from('simulation_cases').select('*').eq('diagram_id', DIAGRAM_ID)
       ]);
 
       const panelsData = panelsRes.data || [];
       const connectionsData = connectionsRes.data || [];
+      const casesData = casesRes.data || [];
+
+      if (casesData.length > 0) {
+        setCases(casesData.map(c => ({
+          id: c.id,
+          diagramId: c.diagram_id,
+          name: c.name,
+          description: c.description || '',
+          state: c.state,
+          createdAt: c.created_at
+        })));
+      } else {
+        setCases([]);
+      }
 
       // 3. Seed data center presets if database is empty
       if (panelsData.length === 0) {
@@ -586,7 +638,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
           id: node.id,
           diagram_id: DIAGRAM_ID,
           label: node.data.label,
-          panel_type: node.data.panelType || 'LV Panel',
+          unit_type: node.data.unitType || 'LV Panel',
           is_source: !!node.data.isSource,
           source_group: node.data.sourceGroup || null,
           status: node.data.status || 'Offline',
@@ -596,6 +648,31 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
         }));
 
         await supabase.from('panels').insert(panelsToInsert);
+
+        // Seed connections as well
+        const uniqueConnections = new Map<string, any>();
+        initialNodes.forEach(node => {
+          node.data.outgoing.forEach(conn => {
+            const targetNode = initialNodes.find(n => n.id === conn.connectedPanelId);
+            const incomingConn = targetNode?.data.incoming.find(c => c.id === conn.id);
+            
+            uniqueConnections.set(conn.id, {
+              id: conn.id,
+              diagram_id: DIAGRAM_ID,
+              source_panel_id: node.id,
+              target_panel_id: conn.connectedPanelId,
+              breaker_status: conn.breakerStatus,
+              selector_status: conn.selectorStatus,
+              is_priority: !!incomingConn?.isPriority,
+              tag: conn.tag || '',
+              settings: conn.settings || { hasSelector: true, hasBreaker: true }
+            });
+          });
+        });
+        const connectionsToInsert = Array.from(uniqueConnections.values());
+        if (connectionsToInsert.length > 0) {
+          await supabase.from('connections').insert(connectionsToInsert);
+        }
 
         // Re-query seeded nodes
         const [reFetchPanels, reFetchConnections] = await Promise.all([
@@ -617,22 +694,25 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [resetHistory, mapAndSetState, locationKeyword, user, DIAGRAM_ID]);
+  }, [resetHistory, mapAndSetState, locationKeyword, user, DIAGRAM_ID, isMockSession]);
 
   // Load from Supabase on mount and establish realtime subscriptions
   useEffect(() => {
     if (!locationKeyword || !user) {
+      resetHistory({ nodes: [], edges: [] });
+      setCases([]);
+      setSelectedNodeId(null);
       setIsLoading(false);
       return;
     }
 
     fetchDiagramData();
 
-    if (isMockDatabase) {
+    if (isMockSession) {
       return;
     }
 
-    // Subscribe to changes on public.panels and public.connections
+    // Subscribe to changes on public.panels, public.connections, and public.simulation_cases
     const realtimeChannel = supabase
       .channel('schema-db-changes')
       .on(
@@ -649,12 +729,19 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
           fetchDiagramData();
         }
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'simulation_cases', filter: `diagram_id=eq.${DIAGRAM_ID}` },
+        () => {
+          fetchDiagramData();
+        }
+      )
       .subscribe();
 
     return () => {
       supabase.removeChannel(realtimeChannel);
     };
-  }, [fetchDiagramData, locationKeyword, user, DIAGRAM_ID]);
+  }, [fetchDiagramData, locationKeyword, user, DIAGRAM_ID, isMockSession]);
 
   const isDraggingRef = useRef(false);
   const dragStartNodesRef = useRef<AppNode[]>([]);
@@ -822,8 +909,9 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       const sourceNode = draft.nodes.find(n => n.id === params.source);
       const targetNode = draft.nodes.find(n => n.id === params.target);
       if (sourceNode && targetNode) {
-        const newOutgoing: ConnectionInfo = { id: newEdgeId, connectedPanelId: targetNode.id, breakerStatus: 'Open', selectorStatus: 'Auto', isPriority: false, tag: '' };
-        const newIncoming: ConnectionInfo = { id: newEdgeId, connectedPanelId: sourceNode.id, breakerStatus: 'Open', selectorStatus: 'Auto', isPriority: false, tag: '' };
+        const defaultSettings = { hasSelector: true, hasBreaker: true };
+        const newOutgoing: ConnectionInfo = { id: newEdgeId, connectedPanelId: targetNode.id, breakerStatus: 'Open', selectorStatus: 'Auto', isPriority: false, tag: '', settings: defaultSettings };
+        const newIncoming: ConnectionInfo = { id: newEdgeId, connectedPanelId: sourceNode.id, breakerStatus: 'Open', selectorStatus: 'Auto', isPriority: false, tag: '', settings: defaultSettings };
         sourceNode.data.outgoing.push(newOutgoing);
         targetNode.data.incoming.push(newIncoming);
         
@@ -855,13 +943,9 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
         position: position,
         data: {
           label: `New Panel`,
-          panelType: 'LV Panel',
+          unitType: 'LV Panel',
           status: 'Offline',
-          properties: [
-              { id: 'prop-loc', key: 'Location', value: 'Unassigned' },
-              { id: 'prop-volt', key: 'Voltage', value: '480' },
-              { id: 'prop-amp', key: 'Amperage', value: '100' },
-          ],
+          properties: getDefaultProperties('LV Panel'),
           incoming: [],
           outgoing: [],
         },
@@ -875,6 +959,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     if (!hasPermission('Supervisor')) return;
     const newId = `panel-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     updateState(draft => {
+        const defaultType = sourceGroup === 'A' ? 'Utility' : 'Generator';
         const newNode: AppNode = {
             id: newId,
             type: 'sourcePanel',
@@ -884,10 +969,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
                 isSource: true,
                 sourceGroup: sourceGroup,
                 status: 'Offline',
-                properties: [
-                    { id: 'prop-volt', key: 'Voltage', value: '220' },
-                    { id: 'prop-amp', key: 'Amperage', value: '100' },
-                ],
+                unitType: defaultType,
+                properties: getDefaultProperties(defaultType),
                 incoming: [],
                 outgoing: [],
             },
@@ -951,30 +1034,72 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     });
   }, [updateState]);
 
-  const updateConnectionConfig = useCallback((nodeId: string, direction: 'incoming' | 'outgoing', connectionId: string, config: Partial<Pick<ConnectionInfo, 'breakerStatus' | 'selectorStatus' | 'tag'>>) => {
+  const updateConnectionConfig = useCallback((
+    nodeId: string,
+    direction: 'incoming' | 'outgoing',
+    connectionId: string,
+    config: Partial<ConnectionInfo>
+  ) => {
     updateState(draft => {
       const node = draft.nodes.find(n => n.id === nodeId);
-      if (node) {
-        if (direction === 'incoming' && config.breakerStatus === 'Closed') {
-            const connectionToClose = node.data.incoming.find(c => c.id === connectionId);
-            if (connectionToClose?.selectorStatus === 'Manual') {
-                const otherClosedBreaker = node.data.incoming.find(c => c.id !== connectionId && c.breakerStatus === 'Closed');
-                if (otherClosedBreaker) {
-                    toast({
-                        variant: "destructive",
-                        title: "Interlock Violation",
-                        description: `Cannot close breaker. Panel ${getNode(otherClosedBreaker.connectedPanelId)?.data.label} is already providing power.`,
-                    });
-                    logEvent({ role, action: 'Interlock Violation', details: `Panel: ${node.data.label}, attempted to close breaker from ${getNode(connectionToClose.connectedPanelId)?.data.label}` });
-                    return; // Block the change
-                }
-            }
-        }
-        const connection = node.data[direction].find(c => c.id === connectionId);
-        if (connection) {
-          Object.assign(connection, config);
+      if (node && direction === 'incoming' && config.breakerStatus === 'Closed') {
+        const connectionToClose = node.data.incoming.find(c => c.id === connectionId);
+        const effSelector = connectionToClose ? getEffectiveSelectorStatus(connectionToClose) : 'Manual';
+        if (effSelector === 'Manual') {
+          const otherClosedBreaker = node.data.incoming.find(
+            c => c.id !== connectionId && getEffectiveBreakerStatus(c) === 'Closed'
+          );
+          if (otherClosedBreaker) {
+            toast({
+              variant: 'destructive',
+              title: 'Interlock Violation',
+              description: `Cannot close breaker. Panel ${
+                getNode(otherClosedBreaker.connectedPanelId)?.data.label
+              } is already providing power.`,
+            });
+            logEvent({
+              role,
+              action: 'Interlock Violation',
+              details: `Panel: ${node.data.label}, attempted to close breaker from ${
+                connectionToClose ? (getNode(connectionToClose.connectedPanelId)?.data.label || 'Unknown') : 'Unknown'
+              }`,
+            });
+            return;
+          }
         }
       }
+
+      // Enforce: Selector Off -> Breaker Open if both enabled
+      const currentConn = node?.data[direction].find(c => c.id === connectionId);
+      const settings = config.settings !== undefined ? config.settings : currentConn?.settings;
+      const finalConfig = { ...config };
+      const hasSelector = settings ? settings.hasSelector : true;
+      const hasBreaker = settings ? settings.hasBreaker : true;
+      const isSelectorOff = finalConfig.selectorStatus === 'Off' || (finalConfig.selectorStatus === undefined && currentConn?.selectorStatus === 'Off');
+
+      if (hasSelector && hasBreaker && isSelectorOff) {
+        finalConfig.breakerStatus = 'Open';
+      }
+
+      // Sync across all connections in the diagram
+      draft.nodes.forEach(n => {
+        n.data.incoming.forEach(c => {
+          if (c.id === connectionId) {
+            Object.assign(c, finalConfig);
+            if (c.settings?.hasSelector && c.settings?.hasBreaker && c.selectorStatus === 'Off') {
+              c.breakerStatus = 'Open';
+            }
+          }
+        });
+        n.data.outgoing.forEach(c => {
+          if (c.id === connectionId) {
+            Object.assign(c, finalConfig);
+            if (c.settings?.hasSelector && c.settings?.hasBreaker && c.selectorStatus === 'Off') {
+              c.breakerStatus = 'Open';
+            }
+          }
+        });
+      });
     });
   }, [updateState, toast, role, getNode]);
 
@@ -1040,7 +1165,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   const saveDiagram = async () => {
     setIsLoading(true);
     try {
-      if (isMockDatabase) {
+      if (isMockSession) {
         // Save to localStorage in mock mode
         localStorage.setItem(`utilix_mock_diagram_${DIAGRAM_ID}`, JSON.stringify({ nodes, edges }));
         save();
@@ -1069,7 +1194,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
         id: node.id,
         diagram_id: DIAGRAM_ID,
         label: node.data.label,
-        panel_type: node.data.panelType || 'LV Panel',
+        unit_type: node.data.unitType || 'LV Panel',
         is_source: !!node.data.isSource,
         source_group: node.data.sourceGroup || null,
         status: node.data.status || 'Offline',
@@ -1093,7 +1218,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
             breaker_status: conn.breakerStatus,
             selector_status: conn.selectorStatus,
             is_priority: !!incomingConn?.isPriority,
-            tag: conn.tag || ''
+            tag: conn.tag || '',
+            settings: conn.settings || { hasSelector: true, hasBreaker: true }
           });
         });
       });
@@ -1385,6 +1511,84 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     });
   }, [clipboard, updateState, hasPermission, role, toast, lastClickPosition]);
 
+  const createCase = useCallback(async (name: string, description?: string) => {
+    if (!hasPermission('Supervisor')) return;
+    const newCase: SimulationCase = {
+      id: `case-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      diagramId: DIAGRAM_ID,
+      name,
+      description: description || '',
+      state: { nodes, edges },
+      createdAt: new Date().toISOString()
+    };
+
+    if (isMockSession) {
+      const updatedCases = [...cases, newCase];
+      localStorage.setItem(`utilix_mock_cases_${DIAGRAM_ID}`, JSON.stringify(updatedCases));
+      setCases(updatedCases);
+      toast({ title: 'Case Created', description: `Simulation case "${name}" created locally.` });
+    } else {
+      try {
+        const { error } = await supabase
+          .from('simulation_cases')
+          .insert({
+            id: newCase.id,
+            diagram_id: DIAGRAM_ID,
+            name: newCase.name,
+            description: newCase.description,
+            state: newCase.state
+          });
+        if (error) throw error;
+        setCases(prev => [...prev, newCase]);
+        toast({ title: 'Case Created', description: `Simulation case "${name}" saved to database.` });
+      } catch (e) {
+        console.error(e);
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to create simulation case.' });
+      }
+    }
+    logEvent({ role, action: 'Create Simulation Case', details: `Created case: ${name}` });
+  }, [nodes, edges, DIAGRAM_ID, isMockSession, cases, hasPermission, role, toast]);
+
+  const deleteCase = useCallback(async (caseId: string) => {
+    if (!hasPermission('Supervisor')) return;
+    const targetCase = cases.find(c => c.id === caseId);
+    if (!targetCase) return;
+
+    if (isMockSession) {
+      const updatedCases = cases.filter(c => c.id !== caseId);
+      localStorage.setItem(`utilix_mock_cases_${DIAGRAM_ID}`, JSON.stringify(updatedCases));
+      setCases(updatedCases);
+      toast({ title: 'Case Removed', description: `Case "${targetCase.name}" removed.` });
+    } else {
+      try {
+        const { error } = await supabase
+          .from('simulation_cases')
+          .delete()
+          .eq('id', caseId);
+        if (error) throw error;
+        setCases(prev => prev.filter(c => c.id !== caseId));
+        toast({ title: 'Case Removed', description: `Case "${targetCase.name}" removed.` });
+      } catch (e) {
+        console.error(e);
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete case.' });
+      }
+    }
+    logEvent({ role, action: 'Delete Simulation Case', details: `Deleted case: ${targetCase.name}` });
+  }, [cases, DIAGRAM_ID, isMockSession, hasPermission, role, toast]);
+
+  const loadCase = useCallback((caseId: string) => {
+    const targetCase = cases.find(c => c.id === caseId);
+    if (!targetCase) return;
+
+    updateState(draft => {
+      draft.nodes = JSON.parse(JSON.stringify(targetCase.state.nodes));
+      draft.edges = JSON.parse(JSON.stringify(targetCase.state.edges));
+    });
+
+    toast({ title: 'Case Loaded', description: `Loaded simulation case "${targetCase.name}". Diagram is now in this state (unsaved).` });
+    logEvent({ role, action: 'Load Simulation Case', details: `Loaded case: ${targetCase.name}` });
+  }, [cases, updateState, toast, role]);
+
   return (
     <DiagramContext.Provider value={{
       nodes,
@@ -1427,6 +1631,10 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       clipboard,
       onNodeDragStart,
       onNodeDragStop,
+      cases,
+      createCase,
+      deleteCase,
+      loadCase,
     }}>
       {children}
     </DiagramContext.Provider>

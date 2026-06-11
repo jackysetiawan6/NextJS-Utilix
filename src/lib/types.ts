@@ -5,7 +5,32 @@ export type Role = 'Supervisor' | 'Operator' | 'ViewOnly';
 export type BreakerStatus = 'Open' | 'Closed';
 export type SelectorStatus = 'Manual' | 'Off' | 'Auto';
 export type Status = 'Online' | 'Offline' | 'Maintenance';
-export type PanelType = 'LV Panel' | 'UPS';
+export type UnitType =
+  | 'Utility'
+  | 'Generator'
+  | 'LV Panel'
+  | 'UPS'
+  | 'PDU'
+  | 'STS'
+  | 'Server Rack'
+  | 'Chiller'
+  | 'AHU'
+  | 'FCU'
+  | 'Lamp';
+
+export interface ConnectionSettings {
+  hasSelector: boolean;
+  hasBreaker: boolean;
+  selectorLabels?: {
+    Auto?: string;
+    Manual?: string;
+    Off?: string;
+  };
+  breakerLabels?: {
+    Closed?: string;
+    Open?: string;
+  };
+}
 
 export interface ConnectionInfo {
   id: string; // Corresponds to the edge ID
@@ -14,6 +39,7 @@ export interface ConnectionInfo {
   selectorStatus: SelectorStatus;
   isPriority?: boolean;
   tag?: string;
+  settings?: ConnectionSettings;
 }
 
 export interface PanelProperty {
@@ -26,7 +52,7 @@ export interface PanelData {
   label: string;
   isSource?: boolean;
   sourceGroup?: 'A' | 'B';
-  panelType?: PanelType;
+  unitType?: UnitType;
   status?: Status;
   sourceRoot?: 'A' | 'B' | null;
   properties: PanelProperty[];
@@ -43,4 +69,16 @@ export interface LogEntry {
   role: string;
   action: string;
   details: string;
+}
+
+export interface SimulationCase {
+  id: string;
+  diagramId: string;
+  name: string;
+  description?: string;
+  state: {
+    nodes: AppNode[];
+    edges: AppEdge[];
+  };
+  createdAt?: string;
 }

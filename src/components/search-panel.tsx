@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { Search, CircuitBoard, Zap, BatteryCharging, Server } from 'lucide-react';
+import { Search, CircuitBoard, Zap, BatteryCharging, Server, Cpu, ArrowRightLeft, Snowflake, Wind, Fan, Lightbulb } from 'lucide-react';
 import { useDiagram } from '@/contexts/diagram-context';
 import { Command, CommandDialog, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from '@/components/ui/command';
 import { Button } from '@/components/ui/button';
@@ -50,8 +50,31 @@ export default function SearchPanel() {
       if (node.data.sourceGroup === 'B') return BatteryCharging;
       return Zap;
     }
-    if (node.data.panelType === 'UPS') return Server;
-    return CircuitBoard;
+    switch (node.data.unitType) {
+      case 'Utility':
+        return Zap;
+      case 'Generator':
+        return BatteryCharging;
+      case 'UPS':
+        return Server;
+      case 'PDU':
+        return Cpu;
+      case 'STS':
+        return ArrowRightLeft;
+      case 'Server Rack':
+        return Server;
+      case 'Chiller':
+        return Snowflake;
+      case 'AHU':
+        return Wind;
+      case 'FCU':
+        return Fan;
+      case 'Lamp':
+        return Lightbulb;
+      case 'LV Panel':
+      default:
+        return CircuitBoard;
+    }
   };
 
   return (

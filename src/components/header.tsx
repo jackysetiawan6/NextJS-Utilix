@@ -1,5 +1,7 @@
 'use client';
-import { Plus, Save, Undo, Redo, SlidersHorizontal, CheckCircle, XCircle, Wrench, ScrollText, ChevronDown, Workflow, HelpCircle } from 'lucide-react';
+
+import { useState } from 'react';
+import { Plus, Save, Undo, Redo, SlidersHorizontal, CheckCircle, XCircle, Wrench, ScrollText, ChevronDown, Workflow, HelpCircle, FolderOpen, Trash2 } from 'lucide-react';
 import { useDiagram } from '@/contexts/diagram-context';
 import { useRole } from '@/contexts/role-context';
 import { Zap, LogOut, MapPin } from 'lucide-react';
@@ -17,8 +19,11 @@ import Link from 'next/link';
 import { logEvent } from '@/lib/log-service';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Label } from "./ui/label";
+import { Input } from "./ui/input";
 import { isMockDatabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/auth-context';
+import { ScrollArea } from './ui/scroll-area';
 
 
 const statusConfig = {
@@ -303,6 +308,109 @@ function SystemGuide() {
   );
 }
 
+function SimulationCasesManager() {
+  const { cases, createCase, loadCase, deleteCase } = useDiagram();
+  const { role, hasPermission } = useRole();
+  const canManage = hasPermission('Supervisor');
+
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    await createCase(name, description);
+    setName('');
+    setDescription('');
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" className="gap-2 shrink-0">
+          <FolderOpen className="h-5 w-5 text-primary" />
+          <span>Cases</span>
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[450px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <FolderOpen className="h-5 w-5 text-primary" />
+            Simulation Cases
+          </DialogTitle>
+          <DialogDescription className="text-xs">
+            Save, load, and manage custom simulation scenarios to test different power distribution paths.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 my-1 text-xs">
+          {cases.length === 0 ? (
+            <div className="text-center py-6 text-muted-foreground border border-dashed rounded-md text-[11px]">
+              No saved simulation cases.
+            </div>
+          ) : (
+            <ScrollArea className="max-h-[200px] border rounded-md p-1 bg-muted/20">
+              <div className="space-y-1">
+                {cases.map((c) => (
+                  <div key={c.id} className="flex items-center justify-between p-2 rounded bg-card border border-border/50 text-[11px] gap-2">
+                    <div className="space-y-0.5 max-w-[280px] truncate">
+                      <div className="font-semibold text-foreground truncate">{c.name}</div>
+                      {c.description && <div className="text-[10px] text-muted-foreground truncate">{c.description}</div>}
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button size="sm" variant="secondary" className="h-6 px-2 text-[10px]" onClick={() => { loadCase(c.id); setOpen(false); }}>
+                        Load
+                      </Button>
+                      {canManage && (
+                        <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive hover:bg-destructive/10" onClick={() => deleteCase(c.id)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          )}
+
+          {canManage && (
+            <form onSubmit={handleSave} className="space-y-3 pt-3 border-t">
+              <h4 className="font-semibold text-xs text-foreground">Save Current State as Case</h4>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label htmlFor="case-name" className="text-[10px]">Case Name</Label>
+                  <Input
+                    id="case-name"
+                    placeholder="e.g. Total Outage"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="case-desc" className="text-[10px]">Description (Optional)</Label>
+                  <Input
+                    id="case-desc"
+                    placeholder="e.g. Grid fails, gens running"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                </div>
+              </div>
+              <Button type="submit" size="sm" className="w-full text-xs h-8">
+                Create Scenario Case
+              </Button>
+            </form>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function Header() {
   const { locationKeyword, logout } = useAuth();
 
@@ -343,6 +451,7 @@ export default function Header() {
         <SearchPanel />
         <DiagramActions />
         <AutoLayoutButton />
+        <SimulationCasesManager />
         <DiagramSettings />
         <ThemeToggle />
         <TooltipProvider>

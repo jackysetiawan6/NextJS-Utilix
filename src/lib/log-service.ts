@@ -16,7 +16,8 @@ export async function logEvent(payload: LogPayload) {
   const diagramId = getActiveDiagramId();
 
   try {
-    if (isMockDatabase) {
+    const isMock = isMockDatabase || (typeof window !== 'undefined' && window.sessionStorage.getItem('utilix_is_mock_session') === 'true');
+    if (isMock) {
       // Mock Mode: Save log to localStorage
       const storedLogsRaw = localStorage.getItem(`utilix_mock_logs_${diagramId}`);
       const storedLogs = storedLogsRaw ? JSON.parse(storedLogsRaw) : [];

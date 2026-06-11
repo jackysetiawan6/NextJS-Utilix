@@ -9,8 +9,10 @@ interface AuthContextType {
   user: User | { id: string; email: string } | null;
   locationKeyword: string | null;
   isLoading: boolean;
+  isMockSession: boolean;
   login: (keyword: string, passcode: string) => Promise<void>;
   register: (keyword: string, passcode: string) => Promise<void>;
+  loginDemo: () => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -19,53 +21,70 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | { id: string; email: string } | null>(null);
   const [locationKeyword, setLocationKeyword] = useState<string | null>(null);
+  const [isMockSession, setIsMockSession] = useState(isMockDatabase);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
   // Load session from Supabase or LocalStorage on mount
   useEffect(() => {
+    let subscription: any = null;
+
     async function initSession() {
       try {
-        if (isMockDatabase) {
-          // Mock Mode session initialization
-          const mockSession = localStorage.getItem('utilix_mock_session');
-          if (mockSession) {
-            const parsed = JSON.parse(mockSession);
-            setUser(parsed.user);
-            setLocationKeyword(parsed.locationKeyword);
-            // Save active diagram ID for logger access
-            window.sessionStorage.setItem('utilix_diagram_id', parsed.locationKeyword);
-          }
+        // First check if there is an active local mock session override
+        const mockSession = localStorage.getItem('utilix_mock_session');
+        if (mockSession) {
+          const parsed = JSON.parse(mockSession);
+          setUser(parsed.user);
+          setLocationKeyword(parsed.locationKeyword);
+          setIsMockSession(true);
+          window.sessionStorage.setItem('utilix_diagram_id', parsed.locationKeyword);
+          window.sessionStorage.setItem('utilix_is_mock_session', 'true');
+        } else if (isMockDatabase) {
+          // No session yet, but database is mock by default
+          setIsMockSession(true);
+          window.sessionStorage.setItem('utilix_is_mock_session', 'true');
         } else {
           // Real Supabase session initialization
           const { data: { session } } = await supabase.auth.getSession();
           if (session?.user) {
             setUser(session.user);
-            // Extract keyword from email: keyword@utilix.local
             const email = session.user.email || '';
             const keyword = email.split('@')[0];
             setLocationKeyword(keyword);
+            setIsMockSession(false);
             window.sessionStorage.setItem('utilix_diagram_id', keyword);
+            window.sessionStorage.setItem('utilix_is_mock_session', 'false');
+          } else {
+            setUser(null);
+            setLocationKeyword(null);
+            setIsMockSession(true);
+            window.sessionStorage.removeItem('utilix_diagram_id');
+            window.sessionStorage.setItem('utilix_is_mock_session', 'true');
           }
           
           // Setup auth listener
-          const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+          const { data: { subscription: sub } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+            const hasMockSession = !!localStorage.getItem('utilix_mock_session');
+            if (hasMockSession) return; // Ignore Supabase updates if running in local demo override
+
             if (session?.user) {
               setUser(session.user);
               const email = session.user.email || '';
               const keyword = email.split('@')[0];
               setLocationKeyword(keyword);
+              setIsMockSession(false);
               window.sessionStorage.setItem('utilix_diagram_id', keyword);
+              window.sessionStorage.setItem('utilix_is_mock_session', 'false');
             } else {
               setUser(null);
               setLocationKeyword(null);
+              setIsMockSession(true);
               window.sessionStorage.removeItem('utilix_diagram_id');
+              window.sessionStorage.setItem('utilix_is_mock_session', 'true');
             }
           });
-
-          return () => {
-            subscription.unsubscribe();
-          };
+          subscription = sub;
         }
       } catch (error) {
         console.error('Failed to initialize session:', error);
@@ -75,12 +94,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     initSession();
+
+    return () => {
+      if (subscription) {
+        subscription.unsubscribe();
+      }
+    };
   }, []);
 
   const login = async (keyword: string, passcode: string) => {
     setIsLoading(true);
     const sanitizedKeyword = keyword.trim().toLowerCase();
-    const email = `${sanitizedKeyword}@utilix.local`;
+    const email = `${sanitizedKeyword}@gmail.com`;
 
     try {
       if (isMockDatabase) {
@@ -96,11 +121,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           throw new Error('Incorrect location passcode.');
         }
 
-        // Create mock session
         const mockUserObj = { id: `mock-uid-${sanitizedKeyword}`, email };
         setUser(mockUserObj);
         setLocationKeyword(sanitizedKeyword);
+        setIsMockSession(true);
         window.sessionStorage.setItem('utilix_diagram_id', sanitizedKeyword);
+        window.sessionStorage.setItem('utilix_is_mock_session', 'true');
         localStorage.setItem(
           'utilix_mock_session',
           JSON.stringify({ user: mockUserObj, locationKeyword: sanitizedKeyword })
@@ -122,7 +148,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (data.user) {
           setUser(data.user);
           setLocationKeyword(sanitizedKeyword);
+          setIsMockSession(false);
           window.sessionStorage.setItem('utilix_diagram_id', sanitizedKeyword);
+          window.sessionStorage.setItem('utilix_is_mock_session', 'false');
+          // Clear any local mock session overrides
+          localStorage.removeItem('utilix_mock_session');
           toast({
             title: 'Welcome Back',
             description: `Successfully logged in to location: ${sanitizedKeyword}`,
@@ -144,7 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = async (keyword: string, passcode: string) => {
     setIsLoading(true);
     const sanitizedKeyword = keyword.trim().toLowerCase();
-    const email = `${sanitizedKeyword}@utilix.local`;
+    const email = `${sanitizedKeyword}@gmail.com`;
 
     try {
       if (isMockDatabase) {
@@ -156,15 +186,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           throw new Error('This location keyword is already registered.');
         }
 
-        // Save new user
         mockUsers[sanitizedKeyword] = passcode;
         localStorage.setItem('utilix_mock_users', JSON.stringify(mockUsers));
 
-        // Auto-login after registration
         const mockUserObj = { id: `mock-uid-${sanitizedKeyword}`, email };
         setUser(mockUserObj);
         setLocationKeyword(sanitizedKeyword);
+        setIsMockSession(true);
         window.sessionStorage.setItem('utilix_diagram_id', sanitizedKeyword);
+        window.sessionStorage.setItem('utilix_is_mock_session', 'true');
         localStorage.setItem(
           'utilix_mock_session',
           JSON.stringify({ user: mockUserObj, locationKeyword: sanitizedKeyword })
@@ -176,7 +206,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
       } else {
         // Real Supabase Registration
-        // 1. Sign up user
         const { data: authData, error: signUpError } = await supabase.auth.signUp({
           email,
           password: passcode,
@@ -185,7 +214,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (signUpError) throw signUpError;
 
         if (authData.user) {
-          // 2. Create the associated diagram entry
           const { error: diagramError } = await supabase
             .from('diagrams')
             .insert({
@@ -197,12 +225,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           if (diagramError) {
             console.error('Error creating diagram document:', diagramError);
-            // Even if diagram insert fails (e.g. database schema not applied yet), we are authenticated.
           }
 
           setUser(authData.user);
           setLocationKeyword(sanitizedKeyword);
+          setIsMockSession(false);
           window.sessionStorage.setItem('utilix_diagram_id', sanitizedKeyword);
+          window.sessionStorage.setItem('utilix_is_mock_session', 'false');
+          // Clear any local mock session overrides
+          localStorage.removeItem('utilix_mock_session');
 
           toast({
             title: 'Location Registered',
@@ -222,13 +253,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const loginDemo = async () => {
+    setIsLoading(true);
+    try {
+      const demoKeyword = 'local-demo';
+      const mockUserObj = { id: 'mock-uid-demo', email: 'demo@gmail.com' };
+      setUser(mockUserObj);
+      setLocationKeyword(demoKeyword);
+      setIsMockSession(true);
+      window.sessionStorage.setItem('utilix_diagram_id', demoKeyword);
+      window.sessionStorage.setItem('utilix_is_mock_session', 'true');
+      localStorage.setItem(
+        'utilix_mock_session',
+        JSON.stringify({ user: mockUserObj, locationKeyword: demoKeyword })
+      );
+
+      toast({
+        title: 'Local Sandbox Activated',
+        description: 'Running in local Demo Mode. Data is saved in your browser.',
+      });
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Demo Error',
+        description: error.message || 'Failed to enter Demo Mode.',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const logout = async () => {
     setIsLoading(true);
     try {
-      if (isMockDatabase) {
+      const hasMockSession = !!localStorage.getItem('utilix_mock_session');
+      if (hasMockSession || isMockDatabase) {
         setUser(null);
         setLocationKeyword(null);
+        setIsMockSession(true);
         window.sessionStorage.removeItem('utilix_diagram_id');
+        window.sessionStorage.setItem('utilix_is_mock_session', 'true');
         localStorage.removeItem('utilix_mock_session');
         toast({
           title: 'Logged Out',
@@ -239,11 +303,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (error) throw error;
         setUser(null);
         setLocationKeyword(null);
+        setIsMockSession(true);
         window.sessionStorage.removeItem('utilix_diagram_id');
-        toast({
-          title: 'Logged Out',
-          description: 'Successfully signed out.',
-        });
+        window.sessionStorage.setItem('utilix_is_mock_session', 'true');
       }
     } catch (error: any) {
       toast({
@@ -257,7 +319,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, locationKeyword, isLoading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, locationKeyword, isLoading, isMockSession, login, register, loginDemo, logout }}>
       {children}
     </AuthContext.Provider>
   );

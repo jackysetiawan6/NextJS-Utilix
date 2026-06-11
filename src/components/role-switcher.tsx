@@ -26,9 +26,9 @@ const roleIcons = {
 };
 
 const roleColors = {
-  Supervisor: "bg-red-500 hover:bg-red-600",
-  Operator: "bg-yellow-500 hover:bg-yellow-600",
-  ViewOnly: "bg-green-500 hover:bg-green-600",
+  Supervisor: "bg-destructive hover:bg-destructive/90 text-destructive-foreground",
+  Operator: "bg-[hsl(var(--status-maintenance))] hover:opacity-95 text-white",
+  ViewOnly: "bg-[hsl(var(--status-online))] hover:opacity-95 text-white",
 }
 
 export default function RoleSwitcher() {

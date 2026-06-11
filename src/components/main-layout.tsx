@@ -4,19 +4,33 @@ import Header from '@/components/header';
 import DiagramCanvas from '@/components/diagram-canvas';
 import DiagramSidebar from './diagram-sidebar';
 import { useDiagram } from '@/contexts/diagram-context';
-import { ReactNode, useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/auth-context';
+import { ReactNode, useState, useEffect, useRef } from 'react';
 import { Skeleton } from './ui/skeleton';
+import LoadingScreen from './ui/loading-screen';
 
 export default function MainLayout({ children }: { children?: ReactNode }) {
-  const { selectedNode, isLoading } = useDiagram();
+  const { selectedNode, isLoading: isDiagramLoading } = useDiagram();
+  const { isLoading: isAuthLoading, locationKeyword } = useAuth();
   const [isClient, setIsClient] = useState(false);
+  const prevKeywordRef = useRef<string | null>(null);
 
   useEffect(() => {
     setIsClient(true);
   }, []);
-  
+
+  useEffect(() => {
+    if (locationKeyword) {
+      prevKeywordRef.current = locationKeyword;
+    }
+  }, [locationKeyword]);
+
+  const isCleaning = isAuthLoading && !locationKeyword && prevKeywordRef.current !== null;
+  const isPreparing = isDiagramLoading || (isAuthLoading && !isCleaning);
+  const showLoader = isClient && (isPreparing || isCleaning);
+
   return (
-    <div className="flex flex-col h-screen bg-background text-foreground">
+    <div className="flex flex-col h-screen bg-background text-foreground relative">
       {isClient ? <Header /> : (
         <div className="flex items-center justify-between p-3 border-b bg-card shadow-sm z-10 h-16 shrink-0">
           <div className="flex items-center gap-3">
@@ -34,22 +48,25 @@ export default function MainLayout({ children }: { children?: ReactNode }) {
           </div>
         </div>
       )}
-      <main className="flex-1 flex flex-row overflow-hidden">
+      <main className="flex-1 flex flex-row overflow-hidden relative">
         <div className="flex-1 relative">
-          {isLoading ? (
-            <div className="w-full h-full flex items-center justify-center">
-              <div className="flex flex-col items-center gap-4">
-                <Skeleton className="h-16 w-16 rounded-full" />
-                <Skeleton className="h-8 w-48" />
-                <p className="text-muted-foreground">Loading Diagram...</p>
-              </div>
-            </div>
-          ) : (
-            children || <DiagramCanvas />
-          )}
+          {children || <DiagramCanvas />}
         </div>
         {selectedNode && <DiagramSidebar />}
       </main>
+      
+      {showLoader && (
+        <LoadingScreen 
+          type={isCleaning ? 'cleaning' : 'preparing'} 
+          message={
+            isCleaning 
+              ? 'Cleaning secure workspace...' 
+              : isDiagramLoading 
+              ? 'Configuring electrical topology...' 
+              : 'Securing Utilix gateway...'
+          } 
+        />
+      )}
     </div>
   );
 }

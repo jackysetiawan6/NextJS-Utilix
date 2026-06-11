@@ -5,11 +5,11 @@ import { useAuth } from '@/contexts/auth-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { KeyRound, MapPin, Zap, Lock, ShieldCheck, HelpCircle } from 'lucide-react';
+import { KeyRound, MapPin, Zap, Lock, ShieldCheck, HelpCircle, Play } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function AuthModal() {
-  const { user, locationKeyword, login, register, isLoading } = useAuth();
+  const { user, locationKeyword, login, register, loginDemo, isLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
   const [keyword, setKeyword] = useState('');
   const [passcode, setPasscode] = useState('');
@@ -25,7 +25,7 @@ export default function AuthModal() {
     setErrorMsg(null);
     const trimmedKeyword = keyword.trim();
 
-    if (trimmedKeyword.length < 8) {
+    if (activeTab === 'register' && trimmedKeyword.length < 8) {
       setErrorMsg('Location keyword must be at least 8 characters long.');
       return false;
     }
@@ -35,7 +35,7 @@ export default function AuthModal() {
       return false;
     }
 
-    if (passcode.length < 6) {
+    if (activeTab === 'register' && passcode.length < 6) {
       setErrorMsg('Location passcode must be at least 6 characters long.');
       return false;
     }
@@ -194,18 +194,33 @@ export default function AuthModal() {
               </>
             )}
           </Button>
+
+          {/* Quick Demo Selector */}
+          <div className="relative flex py-2 items-center">
+            <div className="flex-grow border-t border-border/60"></div>
+            <span className="flex-shrink mx-4 text-muted-foreground text-[10px] uppercase font-bold tracking-wider select-none">Or</span>
+            <div className="flex-grow border-t border-border/60"></div>
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            onClick={loginDemo}
+            disabled={isLoading}
+            className="w-full border-dashed border-primary/40 hover:border-primary/80 hover:bg-primary/5 text-primary font-semibold flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+          >
+            <Play className="h-4 w-4" />
+            Try Quick Demo (Mock Mode)
+          </Button>
         </form>
 
         {/* Info Box */}
         <div className="mt-6 p-4 rounded-lg bg-muted/40 border text-xs text-muted-foreground leading-relaxed flex gap-2 relative">
           <HelpCircle className="h-4 w-4 text-primary/80 shrink-0 mt-0.5" />
           <div className="space-y-1">
-            <p className="font-semibold text-foreground">Security Policy Info</p>
+            <p className="font-semibold text-foreground">Global Role Passcodes</p>
             <p>
-              Each location is isolated. Registering a location keyword creates its own diagram and database records secured via Supabase Row Level Security.
-            </p>
-            <p className="pt-1">
-              Global passcodes (<code>111</code>, <code>222</code>, <code>333</code>) are still used to manage roles within your location.
+              Use <code>111</code> (View-Only), <code>222</code> (Operator), or <code>333</code> (Supervisor) to manage user permissions once inside the diagram location.
             </p>
           </div>
         </div>
