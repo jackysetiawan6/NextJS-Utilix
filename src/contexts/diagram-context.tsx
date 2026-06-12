@@ -837,7 +837,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
         draft.nodes = applyNodeChanges(changes, draft.nodes as AppNode[]);
       });
     } else {
-      const isUndoableChange = changes.some(c => c.type !== 'select');
+      const isUndoableChange = changes.some(c => c.type !== 'select' && c.type !== 'dimensions' && c.type !== 'reset');
 
       updateState(draft => {
         const removeChanges = changes.filter(c => c.type === 'remove') as NodeRemoveChange[];
@@ -869,7 +869,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   }, [updateState, updateStateNonUndoable, hasPermission, toast]);
 
   const onEdgesChange: OnEdgesChange = useCallback((changes: EdgeChange[]) => {
-    const isUndoableChange = changes.some(c => c.type !== 'select');
+    const isUndoableChange = changes.some(c => c.type !== 'select' && c.type !== 'reset');
 
     updateState(draft => {
       const removeChanges = changes.filter(c => c.type === 'remove') as EdgeRemoveChange[];
@@ -1242,7 +1242,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
           .from('connections')
           .delete()
           .eq('diagram_id', DIAGRAM_ID)
-          .not('id', 'in', currentConnectionIds);
+          .not('id', 'in', `(${currentConnectionIds.join(',')})`);
         if (deleteConnectionsError) throw deleteConnectionsError;
       } else {
         const { error: deleteConnectionsError } = await supabase
