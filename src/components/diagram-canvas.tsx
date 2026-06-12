@@ -39,6 +39,7 @@ export default function DiagramCanvas() {
     pasteElements,
     onNodeDragStart,
     onNodeDragStop,
+    undo,
   } = useDiagram();
   const { hasPermission } = useRole();
 
@@ -156,7 +157,7 @@ export default function DiagramCanvas() {
     }
   };
 
-  // Keyboard shortcuts for copy & paste
+  // Keyboard shortcuts for copy, paste & undo
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const activeEl = document.activeElement;
@@ -176,11 +177,15 @@ export default function DiagramCanvas() {
         event.preventDefault();
         pasteElements();
       }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
+        event.preventDefault();
+        undo();
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [copySelectedElements, pasteElements]);
+  }, [copySelectedElements, pasteElements, undo]);
 
 
   return (

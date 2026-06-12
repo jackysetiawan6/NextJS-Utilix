@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { Search, CircuitBoard, Zap, BatteryCharging, Server, Cpu, ArrowRightLeft, Snowflake, Wind, Fan, Lightbulb } from 'lucide-react';
+import { Search, CircuitBoard, Zap, BatteryCharging, Server, Cpu, ArrowRightLeft, Snowflake, Wind, Fan, Lightbulb, Flame } from 'lucide-react';
 import { useDiagram } from '@/contexts/diagram-context';
 import { Command, CommandDialog, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from '@/components/ui/command';
 import { Button } from '@/components/ui/button';
@@ -71,6 +71,10 @@ export default function SearchPanel() {
         return Fan;
       case 'Lamp':
         return Lightbulb;
+      case 'MCFA':
+      case 'LCFA':
+      case 'TBFA':
+        return Flame;
       case 'LV Panel':
       default:
         return CircuitBoard;

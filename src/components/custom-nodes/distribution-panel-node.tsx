@@ -16,6 +16,7 @@ import {
   Wind,
   Fan,
   Lightbulb,
+  Flame,
 } from 'lucide-react';
 import type { PanelData, UnitType } from '@/lib/types';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
@@ -59,6 +60,10 @@ function DistributionPanelNode({ id, data }: NodeProps<PanelData>) {
         return Fan;
       case 'Lamp':
         return Lightbulb;
+      case 'MCFA':
+      case 'LCFA':
+      case 'TBFA':
+        return Flame;
       case 'LV Panel':
       default:
         return CircuitBoard;

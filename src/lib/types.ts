@@ -16,7 +16,10 @@ export type UnitType =
   | 'Chiller'
   | 'AHU'
   | 'FCU'
-  | 'Lamp';
+  | 'Lamp'
+  | 'MCFA'
+  | 'LCFA'
+  | 'TBFA';
 
 export interface ConnectionSettings {
   hasSelector: boolean;

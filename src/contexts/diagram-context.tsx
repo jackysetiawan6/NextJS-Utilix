@@ -124,7 +124,7 @@ const useUndoableState = (initialState: DiagramState) => {
   }, []);
 
   const undo = useCallback(() => {
-    if (historyIndex.current > lastSavedStateIndex.current) {
+    if (historyIndex.current > 0) {
       isUndoRedo.current = true;
       historyIndex.current--;
       setState(history.current[historyIndex.current]);
@@ -186,7 +186,7 @@ const useUndoableState = (initialState: DiagramState) => {
   }, []);
 
   const isDirty = historyIndex.current !== lastSavedStateIndex.current;
-  const canUndo = historyIndex.current > lastSavedStateIndex.current;
+  const canUndo = historyIndex.current > 0;
   const canRedo = historyIndex.current < history.current.length - 1;
 
   return { state, setUndoableState, undo, redo, save, resetToLastSave, resetHistory, isDirty, canUndo, canRedo, getChangesForSave, commitState, setState };
@@ -469,6 +469,7 @@ const autoLayoutNodes = (nodes: AppNode[], edges: AppEdge[]): AppNode[] => {
 
 export function DiagramProvider({ children }: { children: ReactNode }) {
   const { locationKeyword, user, isMockSession } = useAuth();
+  const userId = user?.id;
   const DIAGRAM_ID = locationKeyword || 'main-diagram';
 
   const { 
@@ -542,7 +543,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
 
   // Fetch Diagram configuration, panels, and connections
   const fetchDiagramData = useCallback(async () => {
-    if (!locationKeyword || !user) {
+    if (!locationKeyword || !userId) {
       setIsLoading(false);
       return;
     }
@@ -599,8 +600,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
           .insert({ 
             id: DIAGRAM_ID, 
             name: `Diagram for ${DIAGRAM_ID}`, 
-            owner_id: user.id,
-            members: { [user.id]: 'owner' } 
+            owner_id: userId,
+            members: { [userId]: 'owner' } 
           })
           .select()
           .single();
@@ -694,11 +695,11 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [resetHistory, mapAndSetState, locationKeyword, user, DIAGRAM_ID, isMockSession]);
+  }, [resetHistory, mapAndSetState, locationKeyword, userId, DIAGRAM_ID, isMockSession]);
 
   // Load from Supabase on mount and establish realtime subscriptions
   useEffect(() => {
-    if (!locationKeyword || !user) {
+    if (!locationKeyword || !userId) {
       resetHistory({ nodes: [], edges: [] });
       setCases([]);
       setSelectedNodeId(null);
@@ -741,7 +742,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     return () => {
       supabase.removeChannel(realtimeChannel);
     };
-  }, [fetchDiagramData, locationKeyword, user, DIAGRAM_ID, isMockSession]);
+  }, [fetchDiagramData, locationKeyword, userId, DIAGRAM_ID, isMockSession]);
 
   const isDraggingRef = useRef(false);
   const dragStartNodesRef = useRef<AppNode[]>([]);
@@ -1179,10 +1180,11 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
 
       // 1. Delete panels from Database (will cascade delete connections)
       if (deletedNodeIds.length > 0) {
-        await supabase
+        const { error: deletePanelsError } = await supabase
           .from('panels')
           .delete()
           .in('id', deletedNodeIds);
+        if (deletePanelsError) throw deletePanelsError;
         
         deletedNodeIds.forEach(id => {
           logEvent({ role, action: 'Delete Panel', details: `Deleted panel with ID: ${id}` });
@@ -1227,39 +1229,43 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
 
       // 4. Perform upserts for panels
       if (panelsToUpsert.length > 0) {
-        await supabase
+        const { error: upsertPanelsError } = await supabase
           .from('panels')
           .upsert(panelsToUpsert);
+        if (upsertPanelsError) throw upsertPanelsError;
       }
 
       // 5. Delete removed connections
       const currentConnectionIds = connectionsToUpsert.map(c => c.id);
       if (currentConnectionIds.length > 0) {
-        await supabase
+        const { error: deleteConnectionsError } = await supabase
           .from('connections')
           .delete()
           .eq('diagram_id', DIAGRAM_ID)
-          .not('id', 'in', `(${currentConnectionIds.join(',')})`);
+          .not('id', 'in', currentConnectionIds);
+        if (deleteConnectionsError) throw deleteConnectionsError;
       } else {
-        await supabase
+        const { error: deleteConnectionsError } = await supabase
           .from('connections')
           .delete()
           .eq('diagram_id', DIAGRAM_ID);
+        if (deleteConnectionsError) throw deleteConnectionsError;
       }
 
       // 6. Upsert remaining connections
       if (connectionsToUpsert.length > 0) {
-        await supabase
+        const { error: upsertConnectionsError } = await supabase
           .from('connections')
           .upsert(connectionsToUpsert);
+        if (upsertConnectionsError) throw upsertConnectionsError;
       }
 
       save();
       toast({ title: 'Diagram Saved', description: 'Your changes have been saved to Supabase.' });
       logEvent({ role, action: 'Save Diagram', details: 'All changes saved.' });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to save diagram:", error);
-      toast({ variant: 'destructive', title: 'Error Saving', description: 'Failed to save changes to the database.' });
+      toast({ variant: 'destructive', title: 'Error Saving', description: error.message || 'Failed to save changes to the database.' });
     } finally {
       setIsLoading(false);
     }

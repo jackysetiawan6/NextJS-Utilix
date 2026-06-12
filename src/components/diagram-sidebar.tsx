@@ -432,6 +432,9 @@ export default function DiagramSidebar() {
                                                     <SelectItem value="AHU">AHU</SelectItem>
                                                     <SelectItem value="FCU">FCU</SelectItem>
                                                     <SelectItem value="Lamp">Lamp</SelectItem>
+                                                    <SelectItem value="MCFA">MCFA</SelectItem>
+                                                    <SelectItem value="LCFA">LCFA</SelectItem>
+                                                    <SelectItem value="TBFA">TBFA</SelectItem>
                                                 </>
                                             )}
                                         </SelectContent>

@@ -94,6 +94,28 @@ export const defaultUnitProperties: Record<UnitType, PanelProperty[]> = {
     { id: 'prop-mode', key: 'Operating Mode', value: 'Schedule' },
     { id: 'prop-life', key: 'LED Life Remaining', value: '92%' },
   ],
+  MCFA: [
+    { id: 'prop-loc', key: 'Location', value: '' },
+    { id: 'prop-sys-status', key: 'System Status', value: 'Normal' },
+    { id: 'prop-active-alarms', key: 'Active Alarms', value: '0' },
+    { id: 'prop-troubles', key: 'Troubles', value: '0' },
+    { id: 'prop-battery', key: 'Battery Voltage', value: '26.8 V' },
+    { id: 'prop-vendor', key: 'Vendor', value: 'Siemens' }
+  ],
+  LCFA: [
+    { id: 'prop-loc', key: 'Location', value: '' },
+    { id: 'prop-zone', key: 'Zone Name', value: 'Zone 1' },
+    { id: 'prop-sys-status', key: 'System Status', value: 'Normal' },
+    { id: 'prop-active-alarms', key: 'Active Alarms', value: '0' },
+    { id: 'prop-troubles', key: 'Troubles', value: '0' },
+    { id: 'prop-battery', key: 'Battery Voltage', value: '26.5 V' }
+  ],
+  TBFA: [
+    { id: 'prop-loc', key: 'Location', value: '' },
+    { id: 'prop-box-id', key: 'Box ID', value: 'TB-01' },
+    { id: 'prop-loop', key: 'Loop Connection', value: 'Loop A' },
+    { id: 'prop-tamper', key: 'Tamper Switch', value: 'Closed' }
+  ],
 };
 
 export const getDefaultProperties = (type: UnitType): PanelProperty[] => {

@@ -299,6 +299,7 @@ function SystemGuide() {
               <div className="flex items-center gap-2"><kbd className="bg-muted px-1.5 py-0.5 rounded border text-xs">Ctrl + K</kbd> <span>Open panel search</span></div>
               <div className="flex items-center gap-2"><kbd className="bg-muted px-1.5 py-0.5 rounded border text-xs">Ctrl + C</kbd> <span>Copy selected panels</span></div>
               <div className="flex items-center gap-2"><kbd className="bg-muted px-1.5 py-0.5 rounded border text-xs">Ctrl + V</kbd> <span>Paste copied panels</span></div>
+              <div className="flex items-center gap-2"><kbd className="bg-muted px-1.5 py-0.5 rounded border text-xs">Ctrl + Z</kbd> <span>Undo last action</span></div>
               <div className="flex items-center gap-2"><kbd className="bg-muted px-1.5 py-0.5 rounded border text-xs">Delete / Backspace</kbd> <span>Remove elements</span></div>
             </div>
           </section>
