@@ -419,7 +419,7 @@ export default function Header() {
     <header className="flex items-center justify-between p-3 border-b bg-card shadow-sm z-10 h-16 shrink-0">
       <div className="flex items-center gap-3">
         <Link href="/" className="flex items-center gap-3">
-          <Zap className="h-7 w-7 text-primary" />
+          <img src="/logo.png" alt="Utilix Logo" className="h-8 w-8 object-contain rounded-md" />
           <h1 className="text-xl font-bold text-foreground tracking-tight">
             Utilix
           </h1>

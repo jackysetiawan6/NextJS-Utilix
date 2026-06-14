@@ -491,27 +491,41 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     const mappedNodes: AppNode[] = panelsData.map(p => {
       const incoming = connectionsData
         .filter(c => c.target_panel_id === p.id)
-        .map(c => ({
-          id: c.id,
-          connectedPanelId: c.source_panel_id,
-          breakerStatus: c.breaker_status,
-          selectorStatus: c.selector_status,
-          isPriority: c.is_priority,
-          tag: c.tag || '',
-          settings: c.settings || { hasSelector: true, hasBreaker: true }
-        }));
+        .map(c => {
+          let tag = c.tag || '';
+          if (tag.includes('|||')) {
+            const parts = tag.split('|||');
+            tag = parts[1] || '';
+          }
+          return {
+            id: c.id,
+            connectedPanelId: c.source_panel_id,
+            breakerStatus: c.breaker_status,
+            selectorStatus: c.selector_status,
+            isPriority: c.is_priority,
+            tag: tag,
+            settings: c.settings || { hasSelector: true, hasBreaker: true }
+          };
+        });
 
       const outgoing = connectionsData
         .filter(c => c.source_panel_id === p.id)
-        .map(c => ({
-          id: c.id,
-          connectedPanelId: c.target_panel_id,
-          breakerStatus: c.breaker_status,
-          selectorStatus: c.selector_status,
-          isPriority: c.is_priority,
-          tag: c.tag || '',
-          settings: c.settings || { hasSelector: true, hasBreaker: true }
-        }));
+        .map(c => {
+          let tag = c.tag || '';
+          if (tag.includes('|||')) {
+            const parts = tag.split('|||');
+            tag = parts[0] || '';
+          }
+          return {
+            id: c.id,
+            connectedPanelId: c.target_panel_id,
+            breakerStatus: c.breaker_status,
+            selectorStatus: c.selector_status,
+            isPriority: c.is_priority,
+            tag: tag,
+            settings: c.settings || { hasSelector: true, hasBreaker: true }
+          };
+        });
 
       return {
         id: p.id,
@@ -657,6 +671,10 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
             const targetNode = initialNodes.find(n => n.id === conn.connectedPanelId);
             const incomingConn = targetNode?.data.incoming.find(c => c.id === conn.id);
             
+            const outgoingTag = conn.tag || '';
+            const incomingTag = incomingConn?.tag || '';
+            const combinedTag = (outgoingTag || incomingTag) ? `${outgoingTag}|||${incomingTag}` : '';
+
             uniqueConnections.set(conn.id, {
               id: conn.id,
               diagram_id: DIAGRAM_ID,
@@ -665,7 +683,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
               breaker_status: conn.breakerStatus,
               selector_status: conn.selectorStatus,
               is_priority: !!incomingConn?.isPriority,
-              tag: conn.tag || '',
+              tag: combinedTag,
               settings: conn.settings || { hasSelector: true, hasBreaker: true }
             });
           });
@@ -1082,11 +1100,16 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
         finalConfig.breakerStatus = 'Open';
       }
 
+      const { tag, ...otherConfig } = finalConfig;
+
       // Sync across all connections in the diagram
       draft.nodes.forEach(n => {
         n.data.incoming.forEach(c => {
           if (c.id === connectionId) {
-            Object.assign(c, finalConfig);
+            Object.assign(c, otherConfig);
+            if (n.id === nodeId && direction === 'incoming' && tag !== undefined) {
+              c.tag = tag;
+            }
             if (c.settings?.hasSelector && c.settings?.hasBreaker && c.selectorStatus === 'Off') {
               c.breakerStatus = 'Open';
             }
@@ -1094,7 +1117,10 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
         });
         n.data.outgoing.forEach(c => {
           if (c.id === connectionId) {
-            Object.assign(c, finalConfig);
+            Object.assign(c, otherConfig);
+            if (n.id === nodeId && direction === 'outgoing' && tag !== undefined) {
+              c.tag = tag;
+            }
             if (c.settings?.hasSelector && c.settings?.hasBreaker && c.selectorStatus === 'Off') {
               c.breakerStatus = 'Open';
             }
@@ -1212,6 +1238,10 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
           const targetNode = nodesToUpsert.find(n => n.id === conn.connectedPanelId);
           const incomingConn = targetNode?.data.incoming.find(c => c.id === conn.id);
           
+          const outgoingTag = conn.tag || '';
+          const incomingTag = incomingConn?.tag || '';
+          const combinedTag = (outgoingTag || incomingTag) ? `${outgoingTag}|||${incomingTag}` : '';
+
           uniqueConnections.set(conn.id, {
             id: conn.id,
             diagram_id: DIAGRAM_ID,
@@ -1220,7 +1250,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
             breaker_status: conn.breakerStatus,
             selector_status: conn.selectorStatus,
             is_priority: !!incomingConn?.isPriority,
-            tag: conn.tag || '',
+            tag: combinedTag,
             settings: conn.settings || { hasSelector: true, hasBreaker: true }
           });
         });
@@ -1333,7 +1363,9 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
         if (!sourceNode) return edge;
         const outgoingConn = sourceNode.data.outgoing.find(c => c.id === edge.id);
 
-        const label = outgoingConn?.tag;
+        const label = (outgoingConn?.tag && incomingConn?.tag && outgoingConn.tag !== incomingConn.tag)
+          ? `${outgoingConn.tag} → ${incomingConn.tag}`
+          : (outgoingConn?.tag || incomingConn?.tag || '');
 
         if (targetNode.data.status === 'Online' && incomingConn?.breakerStatus === 'Closed' && outgoingConn?.breakerStatus === 'Closed') {
             const root = getNodeRoot(edge.target, nodes);

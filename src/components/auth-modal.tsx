@@ -72,7 +72,7 @@ export default function AuthModal() {
 
         <div className="flex flex-col items-center text-center space-y-3 mb-6 relative">
           <div className="p-3 bg-primary/10 rounded-full border border-primary/20 shadow-inner shadow-primary/10">
-            <Zap className="h-8 w-8 text-primary animate-pulse" />
+            <img src="/logo.png" alt="Utilix Logo" className="h-8 w-8 object-contain rounded-md" />
           </div>
           <div>
             <h2 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-foreground via-foreground to-foreground/80 bg-clip-text">
