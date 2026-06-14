@@ -254,7 +254,7 @@ function SystemGuide() {
       <DialogContent className="sm:max-w-[550px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl font-bold">
-            <Zap className="h-6 w-6 text-primary" />
+            <img src="/logo.png" alt="Utilix Logo" className="h-6 w-6 object-contain rounded-sm" />
             Utilix System Guide
           </DialogTitle>
           <DialogDescription>

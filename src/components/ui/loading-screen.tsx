@@ -35,7 +35,7 @@ export default function LoadingScreen({ message, type = 'general' }: LoadingScre
             {type === 'cleaning' ? (
               <RefreshCw className="h-8 w-8 text-primary animate-spin [animation-duration:3s]" />
             ) : type === 'preparing' ? (
-              <Zap className="h-8 w-8 text-primary animate-pulse" />
+              <img src="/logo.png" alt="Utilix Logo" className="h-8 w-8 object-contain rounded-md animate-pulse" />
             ) : (
               <ShieldCheck className="h-8 w-8 text-primary" />
             )}
