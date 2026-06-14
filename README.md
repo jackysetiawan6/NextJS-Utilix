@@ -1,144 +1,157 @@
-<p align="center">
-  <a href="https://github.com/jackysetiawan6/NextJS-Utilix">
-    <img src="public/banner.png" alt="Utilix Brand Banner" width="100%" style="border-radius: 0.5rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);" />
-  </a>
-</p>
+# Utilix
 
-<p align="center">
-  <strong>Interactive Data Center Power Distribution Management & Single-Line Diagram Editor</strong>
-</p>
+[![GitHub Repository](https://img.shields.io/badge/GitHub-NextJS--Utilix-blue?logo=github)](https://github.com/jackysetiawan6/NextJS-Utilix)
+[![Website](https://img.shields.io/badge/Website-nextjs--utilix.vercel.app-green)](https://utilix.vercel.app)
 
-<p align="center">
-  <a href="https://github.com/jackysetiawan6/NextJS-Utilix/stargazers"><img src="https://img.shields.io/github/stars/jackysetiawan6/NextJS-Utilix?style=flat-square&color=6366f1" alt="GitHub Stars"></a>
-  <a href="https://github.com/jackysetiawan6/NextJS-Utilix/issues"><img src="https://img.shields.io/github/issues/jackysetiawan6/NextJS-Utilix?style=flat-square&color=ef4444" alt="GitHub Issues"></a>
-  <a href="https://github.com/jackysetiawan6/NextJS-Utilix/blob/main/LICENSE"><img src="https://img.shields.io/github/license/jackysetiawan6/NextJS-Utilix?style=flat-square&color=10b981" alt="License"></a>
-  <a href="https://nextjs.org"><img src="https://img.shields.io/badge/built%20with-Next.js-black?style=flat-square" alt="Next.js"></a>
-</p>
+![Utilix Banner](./public/banner.png)
+
+**Utilix** is a premium, interactive single-line diagram (SLD) and electrical power distribution management dashboard designed for modern data centers. It empowers supervisors and operators to design, configure, simulate, and monitor complex electrical trees, transfer switch parameters, safety interlocks, and downstream power topologies in real-time. Built using **Next.js**, **React Flow**, **TypeScript**, and **Supabase**, it features a responsive design with real-time sync, electrical simulation, safety interlock enforcement, and persistent event logging.
 
 ---
 
-## 🚀 Overview
+## 🚀 Key Features
 
-**Utilix** is a professional single-line diagram (SLD) interactive canvas and electrical power distribution management dashboard designed for modern data centers. It empowers supervisors and operators to design, configure, simulate, and audit complex electrical trees, transfer switch parameters, safety interlocks, and downstream power topologies in real-time.
-
----
-
-## ⚡ Key Features
-
-* **🎨 Custom Designed Brand Identity**:
-  * Integrated a custom futuristic energy-circuit logo directly in the website layout header and authentication portals.
-* **🌐 Interactive Single-Line Diagram (SLD) Canvas**:
-  * Rendered using **React Flow** with interactive panning, zooming, and item dragging.
-  * Collapsible downstream distribution tree nodes to reduce visual clutter on complex canvas topologies.
-  * Explicit color-coding for primary electrical sources (Group A - Cyan, Group B - Purple, Main Lines - Gray).
-* **🔀 Decoupled Connection Port Naming**:
-  * Supports independent naming for outgoing ports (source side) and incoming ports (target side) on the same connected edge (e.g., source panel A's outgoing port can be named `Q1.1` while target panel B's incoming port is named `LVDP A1-1`).
-  * Displays combined labels (`Outgoing → Incoming`) along active wires on the diagram canvas.
-  * Serialized using a smart, backward-compatible delimiter (`|||`) within the database schema, requiring **zero database migration downtime**.
-* **🔋 Automated Power Flow Simulation**:
-  * Evaluates active flow using a **fixed-point iterative convergence algorithm**, resolving panel statuses (`Online`, `Offline`, `Maintenance`) correctly regardless of rendering order.
-  * Models **Automatic Transfer Switch (ATS)** behavior by automatically switching and closing/opening incoming breakers based on upstream availability and priority.
-  * Automates outgoing feeder breakers in `Auto` mode to close/open dynamically based on parent panel status.
-  * Enforces **interlock rules** to prevent accidental short-circuits (e.g., locking out multiple manual closed feeds on the same panel).
-* **🔑 Role-Based Access Control (RBAC)**:
-  * Passcode-secured switcher embedded in the toolbar:
-    * **Supervisor** (Passcode: `3333`): Full editing permissions (create/delete panels & connections, edit properties, trigger topological auto-layout).
-    * **Operator** (Passcode: `2222`): Operational permissions (control manual breakers and select transfer priority).
-    * **View-Only** (Empty passcode): Observation mode.
-* **💾 Supabase Integration & Realtime Sync**:
-  * Synchronizes diagram layouts, panel detail properties, and connection states across all clients in real-time.
-  * Supports **Mock Mode fallback** when environment variables are missing, with a visual amber indicator and informative tooltip in the header.
-* **⏱️ Performance-Optimized Undo/Redo**:
-  * Supports complete Undo and Redo states (`Ctrl+Z` / `Ctrl+Y`) for layout and panel modifications.
-  * Groups continuous drag movements into a single transaction committed to history only on release, preventing undo history bloat.
-* **📜 Persistent Event Logging**:
-  * Records detailed operations (breaker state changes, role authentication, connection creations, errors, etc.).
-  * Dedicated Log viewer page with live search filters for Roles, Actions, and details.
+*   **🌐 Interactive Single-Line Diagram (SLD):** Powered by React Flow with zoom, pan, item dragging, and collapsible tree branches to minimize visual clutter on complex canvas layouts.
+*   **🔀 Decoupled Port Naming:** Source panel outgoing and target panel incoming port tags can be named independently. Wires on the canvas display combined labels (`Outgoing → Incoming`) when different, and fall back to the single name when matching.
+*   **🔋 Power Flow Simulation:** Runs an electrical fixed-point iterative convergence algorithm to resolve panel statuses (`Online`, `Offline`, `Maintenance`) correctly, regardless of canvas rendering order.
+*   **⚡ Safety Interlocks:** Blocks dangerous manual short-circuits by checking active source paths and warning the operator of interlock violations before closing multiple incoming breakers.
+*   **🔑 Role-Based Access Control (RBAC):** Switch between Supervisor, Operator, and View-Only modes via passcode validation, enforcing granular operation and editing permissions.
+*   **💾 Database Sync & Realtime:** Real-time database sync using Supabase Broadcast/Presence, with a fallback Mock Mode indicator and tooltip if environment keys are missing.
+*   **⏱️ Undo/Redo & Drag Performance:** Full state history tracking optimized for continuous drag operations, committing history entries only when node dragging completes.
+*   **📜 Event Logging Audit:** Records all user actions and safety violations in an audit log, with a dedicated, searchable Event Logs page.
 
 ---
 
-## 🛠️ Architecture & Tech Stack
-
-* **Frontend Framework**: Next.js `15.5.9` (App Router)
-* **Core Library**: React `19.2.1` & TypeScript
-* **State Management**: Immer (for immutable nested state updates), React Context API
-* **Canvas Visualization**: React Flow `11.11.3`
-* **Styling & UI**: Tailwind CSS, Radix UI (via Shadcn/ui presets), Lucide Icons
-* **Backend Platform**: Supabase (PostgreSQL Database, Realtime Replication)
-
----
-
-## 📁 Project Structure
+## 📂 Project Structure
 
 ```
-├── supabase/                  # Supabase schema migrations
+NextJS-Utilix/
+├── .env.example          # Sample environment variables configuration
+├── components.json       # Shadcn UI configuration
+├── next.config.ts        # Next.js build configuration
+├── package.json          # Dependency and script definitions
+├── tailwind.config.ts    # Tailwind styling configuration
+├── tsconfig.json         # TypeScript configuration
+├── public/               # Static assets folder
+│   ├── logo.png          # High-quality brand logo
+│   └── banner.png        # Sleek 3:1 aspect ratio repository banner
+├── supabase/             # Supabase database schema and migrations
 │   └── migrations/
-│       └── supabase-schema.sql # Database schema for diagrams, panels, and connections
-├── public/                    # Static assets
-│   └── logo.png               # Custom designed brand logo asset
-├── package.json               # Scripts and dependencies
-├── tailwind.config.ts         # Tailwind styling configuration
-├── src/
-│   ├── app/                   # Next.js App Router (pages and layouts)
-│   │   ├── log/               # Event logs page component
-│   │   └── globals.css        # Main stylesheet with CSS tokens
-│   ├── components/            # Reusable UI & custom canvas node elements
-│   │   ├── custom-nodes/      # React Flow custom node renders
-│   │   └── ui/                # Radix UI shadcn components
-│   ├── contexts/              # Role and Diagram global state providers
-│   ├── hooks/                 # Custom React hooks (toasts)
-│   └── lib/                   # Types, initial data presets, and utilities
+│       └── supabase-schema.sql
+└── src/                  # Application Source Code
+    ├── app/              # Next.js App Router pages and layouts
+    │   ├── log/
+    │   │   └── page.tsx  # Event logs viewer page component
+    │   ├── globals.css   # Theme styling tokens and custom rules
+    │   ├── layout.tsx    # Root layout template
+    │   ├── page.tsx      # Main dashboard page entry point
+    │   └── react-flow.css # Custom styling for React Flow handles and nodes
+    ├── components/       # Custom React UI components
+    │   ├── custom-nodes/
+    │   │   ├── distribution-panel-node.tsx # Collapsible downstream power panels
+    │   │   └── source-panel-node.tsx       # Power source input panels (Group A / B)
+    │   ├── ui/           # Radix UI core primitive components
+    │   ├── auth-modal.tsx      # Passcode role authentication gate modal
+    │   ├── context-menu.tsx    # Right-click node layout actions context menu
+    │   ├── diagram-canvas.tsx  # React Flow canvas coordinator and drag listeners
+    │   ├── diagram-sidebar.tsx # Selected panel properties and connections sidebar editor
+    │   ├── header.tsx          # System guide help, undo/redo, and menu bar
+    │   ├── main-layout.tsx     # Layout builder wrapper
+    │   ├── role-switcher.tsx   # Role switcher button
+    │   ├── search-panel.tsx    # Cmd+K search panel matching names and locations
+    │   ├── theme-provider.tsx  # CSS theme wrapper
+    │   └── theme-toggle.tsx    # Dark/Light/System theme toggle
+    ├── contexts/         # React Context API state providers
+    │   ├── auth-context.tsx    # Simulation case save/load/auth controls
+    │   ├── diagram-context.tsx # Fixed-point simulation, RLS sync, and mutations context
+    │   └── role-context.tsx    # Active permission level check context
+    ├── hooks/            # Custom hooks
+    │   └── use-toast.ts        # Reusable alert notifications hook
+    └── lib/              # Shared utilities and helpers
+        ├── initial-data.ts     # Pre-configured 13-node, 13-edge data center tree preset
+        ├── log-service.ts      # Client-side helper to record logs in Supabase
+        ├── supabase.ts         # Supabase client instantiation
+        ├── types.ts            # TypeScript interfaces for panels and logs
+        └── utils.ts            # Helper function for Tailwind class merging
 ```
 
 ---
 
-## ⚙️ Setup & Installation
+## 🛠️ Technology Stack
+
+*   **Frontend:** Next.js 15 (App Router), React 19, TypeScript, React Flow, TailwindCSS, Lucide Icons
+*   **Backend / Database:** Supabase (PostgreSQL)
+*   **Realtime Sync:** Supabase Realtime (Publication channels)
+
+---
+
+## 📦 Architecture & Database Design
+
+Utilix couples its electrical simulation context with a Supabase PostgreSQL backend, supporting real-time visual collaboration across active clients.
+
+### Key Database Tables
+*   `diagrams`: Top-level diagram documents containing metadata, owner IDs, and membership lists.
+*   `panels`: Individual equipment nodes storing coordinates, custom property lists, and status.
+*   `connections`: Electrical wiring edges holding breaker/selector configurations, priority, and the delimited `tag` (storing `outgoingTag|||incomingTag` for decoupled naming).
+*   `logs`: Event log audit database.
+*   `simulation_cases`: Pre-saved scenario cases containing complete canvas snapshots.
+
+### Simulation Engine & Convergence
+*   **Fixed-Point Loop**: Evaluates active flow using a loop that runs until panel power statuses (`Online`/`Offline`) stabilize, ignoring canvas rendering order.
+*   **Safety Interlocks**: Enforces interlock constraints client-side, blocking operator actions if they attempt to close multiple manual feeds onto a single panel.
+*   **Decoupled Tags**: Uses a backward-compatible serialization strategy, packing both source and target names in the `tag` column (`outgoing_tag|||incoming_tag`) to preserve 100% compatibility with older plain-text tags and require **zero SQL migration/database downtime**.
+
+---
+
+## 🔧 Getting Started
 
 ### Prerequisites
+*   Node.js (v18 or higher)
+*   NPM or PNPM
+*   A Supabase Project
 
-* Node.js (v18+ recommended)
-* npm or yarn
+### Local Installation
 
-### Steps
+1.  **Clone the Repository:**
+    ```bash
+    git clone https://github.com/jackysetiawan6/NextJS-Utilix.git
+    cd NextJS-Utilix
+    ```
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/jackysetiawan6/NextJS-Utilix.git
-   cd NextJS-Utilix
-   ```
+2.  **Install Dependencies:**
+    ```bash
+    npm install
+    ```
 
-2. **Install dependencies**:
-   ```bash
-   npm install
-   ```
+3.  **Environment Variables:**
+    Create a `.env.local` file in the root directory:
+    ```env
+    NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+    NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+    ```
+    *If environment variables are omitted, Utilix automatically falls back to local Mock Mode so you can still try all features without a backend!*
 
-3. **Configure Environment Variables**:
-   Create a `.env.local` file in the root directory and add your Supabase credentials:
-   ```env
-   NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-public-key
-   ```
-   *If environment variables are omitted, Utilix automatically falls back to local Mock Mode so you can still try all features without a backend!*
+4.  **Database Migrations:**
+    Apply the SQL scripts under the `supabase/migrations/` folder directly to your Supabase SQL Editor.
 
-4. **Initialize Supabase Schema**:
-   Run the SQL statements found in `supabase/migrations/supabase-schema.sql` inside your Supabase project's SQL editor to set up the required tables, indices, and realtime publication permissions.
+5.  **Run Development Server:**
+    ```bash
+    npm run dev
+    ```
 
-5. **Run the local development server**:
-   ```bash
-   npm run dev
-   ```
-   The development server will spin up on **http://localhost:9002**.
-
-6. **Build for production**:
-   ```bash
-   npm run build
-   ```
+6.  **Build for Production:**
+    ```bash
+    npm run build
+    ```
 
 ---
 
-## 🔑 Authentication Passcodes
+## 🤝 Contributing
 
-Elevate your user role inside the app's top bar or review them in the Switch Role dialog:
-* **Supervisor**: `3333`
-* **Operator**: `2222`
-* **View-Only**: Switch role and click authenticate with an empty passcode field.
+Contributions are welcome! Please open an issue or submit a pull request if you want to suggest improvements, report bugs, or add new features.
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
