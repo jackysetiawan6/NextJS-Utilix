@@ -10,6 +10,9 @@ import AuthModal from '@/components/auth-modal';
 export const metadata: Metadata = {
   title: 'Utilix',
   description: 'Interactive Data Center Power Distribution Management',
+  icons: {
+    icon: '/favicon.png',
+  },
 };
 
 export default function RootLayout({
